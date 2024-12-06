@@ -1,9 +1,6 @@
-// File: SerialCommunicationHandler.ino
-
 #define BUFFER_SIZE 100 // Max size of buffer
 byte buf[BUFFER_SIZE];  // Buffer to store incoming data
 
-// Timeout in milliseconds for receiving data
 const unsigned long TIMEOUT = 500; 
 
 void setup() {
@@ -15,24 +12,25 @@ void setup() {
 
 void loop() {
   // Send the first command
-  byte input1[] = {0x3F, 0x23, 0x7E, 0x34, 0x41, 0x7E, 0x32, 0x59, 0x31, 0x35, 0x30, 0x30, 0x23, 0x3F};
+  //not sure if address is correct
+  //could use 0 because that is broadcast address?
+  //
+  byte input1[] = {0x3F, 0x23, 0x7E, 0x34, 0x41, 0x7E, 0x32, 0x59, 0x31, 0x30, 0x30, 0x30, 0x23, 0x3F};
   Serial1.write(input1, sizeof(input1));
   delay(100); // Wait for a response
 
   // Read the response
   readResponse();
 
-  delay(1000); // Wait before sending the next command
+  delay(1500); // Wait before sending the next command
   
   // Send the second command
   byte input2[] = {0x3F, 0x23, 0x7E, 0x34, 0x42, 0x7E, 0x23, 0x3F};
   Serial1.write(input2, sizeof(input2));
-  delay(100); // Wait for a response
-
   // Read the response
   readResponse();
 
-  delay(2000); // Cycle delay
+  delay(1500); // Cycle delay
 }
 
 void readResponse() {
