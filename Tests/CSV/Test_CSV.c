@@ -5,102 +5,123 @@
 #include <string.h>
 #include <errno.h>
 
-#define DATA_SIZE 32
+#define DATA_SIZE 30
 #define BUFFER_SIZE 1024
 #define NUM_VALUES (DATA_SIZE / 2)
 
-// Functie om data naar een CSV-bestand te schrijven.
-int write_csv(const char *filename) {
-    int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd == -1) {
+// Function to write to csv file
+int write_csv(const char *filename)
+{
+    FILE *file = fopen(filename, "w");
+    if (file == NULL)
+    {
         perror("Error opening file for writing");
         return -1;
     }
-
-    // CSV-inhoud
-    const char *D[DATA_SIZE] = {
-        "08", "FC", "00", "00", "C3", "50", "09", "60", "13", "88", "75", "30", "00", "FA", "01", "00",
-        "00", "00", "00", "00", "00", "9C", "00", "01", "E2", "40", "00", "00", "27", "10"
-    };
-
-    unsigned short values[DATA_SIZE];
-    for (int i = 0; i < NUM_VALUES; i++) {
-    unsigned short high_byte = (unsigned short)strtol(D[2 * i], NULL, 16);
-    unsigned short low_byte = (unsigned short)strtol(D[2 * i + 1], NULL, 16);
-    values[i] = (high_byte << 8) | low_byte; // Combine high and low bytes
-    }
-
-    // Print the decimal values
-    printf("Decimal values:\n");
-    for (int i = 0; i < NUM_VALUES; i++) {
-        printf("Value %d: %u\n", i, values[i]);
-
-
-    }
-     const char *data = "";
-
-
-    ssize_t bytes_written = write(fd, values,  NUM_VALUES * sizeof(values[0]));
-        if (bytes_written == -1) {
-        perror("Error writing to file");
-        close(fd);
-        return -1;
+    // SIMULATING DATA FOR WRITING PURPOSES
+    // DATA IS STORED IN SAME FOLDER AS C FILE FOR TESTING.
+    freopen("input.txt", "r", stdin);
+    unsigned short raw_data[NUM_VALUES];
+    for (int i = 0; i < NUM_VALUES; i++)
+    {
+        unsigned short high_byte, low_byte;
+        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
+        {
+            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
+            exit(EXIT_FAILURE);
         }
 
+        raw_data[i] = (high_byte << 8) | low_byte;
+        printf("raw_data[%d] = %04x\n", i, raw_data[i]);
+    }
 
-    close(fd);
+    // Calculate values based on given formula.
+    double pv1_voltage = (raw_data[0]) / 10.0;                            // D1D2
+    double pv2_voltage = (raw_data[2]) / 10.0;                            // D5D6
+    double grid_voltage = (raw_data[4]) / 10.0;                           // D7D8
+    double grid_frequency = (raw_data[5]) / 100.0;                        // D9D10
+    double output_power = (raw_data[6]) / 10.0;                           // D11D12
+    double temperature = (raw_data[7]) / 10.0;                            // D13D14
+    double energy_today = (raw_data[10]) / 10.0;                          // D21D22
+    double energy_total = ((raw_data[11] * 65536) + raw_data[12]) / 10.0; // D23D24D25D26
+    double total_time = (raw_data[13] + raw_data[14]);                    // D27D28D29D30
+
+    // Write results to the CSV file
+    fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
+    fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f,%d", pv1_voltage, pv2_voltage, grid_voltage, grid_frequency, output_power, temperature, energy_today, energy_total, total_time);
+    fclose(file);
     return 0;
 }
 
-// Functie om data van een CSV-bestand te lezen
-int read_csv(const char *filename) {
-    int fd = open(filename, O_RDONLY);
-    if (fd == -1) {
+// Function to read data from csv file
+int read_csv(const char *filename)
+{
+    FILE *file = fopen(filename, "r");
+    if (file == NULL)
+    {
         perror("Error opening file for reading");
         return -1;
     }
 
     char buffer[BUFFER_SIZE];
-    ssize_t bytes_read;
 
-    // Lees data in stukken van BUFFER_SIZE
-    while ((bytes_read = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[bytes_read] = '\0';  // Zorg ervoor dat de buffer nul-geëindigd is
+    // Read line-by-line from the CSV file using fgets
+    while (fgets(buffer, sizeof(buffer), file) != NULL)
+    {
+        // Output the line from CSV
         printf("%s", buffer);
     }
 
-    if (bytes_read == -1) {
+    if (ferror(file))
+    {
         perror("Error reading from file");
-        close(fd);
+        fclose(file);
         return -1;
     }
 
-    close(fd);
+    fclose(file);
     return 0;
 }
 
-// Testfunctie om de schrijf- en leesfunctionaliteit te controleren
-void test_csv() {
-    const char *filename = "test.csv";
+void test_csv()
+{
+    // Test function for read and write actions.
+    const char *valid_filename = "test.csv";
+    const char *invalid_filename = "/fake_path/test.csv";
 
-    if (write_csv(filename) != 0) {
-        printf("Test failed writing to csv file.\n");
-        return;
+    printf("\n=== Testing Success Scenario ===\n");
+    if (write_csv(valid_filename) == 0)
+    {
+        printf("Writing succeeded. Verifying contents:\n");
+        if (read_csv(valid_filename) != 0)
+        {
+            printf("Failed to read valid CSV file.\n");
+        }
+    }
+    else
+    {
+        printf("Failed to write valid CSV file.\n");
     }
 
-  
-    printf("Inhoud van het CSV-bestand:\n");
-    if (read_csv(filename) != 0) {
-        printf("Test failed reading the csv file\n");
-        return;
+    printf("\n=== Testing Failure Scenarios ===\n");
+
+    // Test writing to an invalid location
+    if (write_csv(invalid_filename) == 0)
+    {
+        printf("This will never print because the code will fail inside the function write_csv\n");
     }
 
-    printf("\nTest succesvol voltooid.\n");
+    // Test reading a non-existent file
+    if (read_csv(invalid_filename) == 0)
+    {
+        printf("This will never print because the code will fail inside the function read_csv\n");
+    }
+
+    // todo test bad input.
 }
-
-int main() {
-    // Voer de CSV-test uit
+int main()
+{
+    // Run test
     test_csv();
     return 0;
 }
-
