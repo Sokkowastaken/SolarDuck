@@ -1,0 +1,20 @@
+{
+    "PV1 voltage": "200v",
+    "Grid": {
+        "voltage": "800V",
+        "frequency": "200Hz"
+    },
+    "Output power": "70Kw",
+    "Inverter": {
+        "temprature": "55",
+        "status": "Normal",
+        "fault": "Error : xxx"
+    },
+    "Produced": {
+        "today": "200W",
+        "lifetime": "17Kw"
+    },
+    "Total operating time": "D:HH:MM",
+    "Time": "13:58",
+    "date ": "02-12-2024"
+}
