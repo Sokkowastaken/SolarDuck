@@ -13,8 +13,9 @@ ser = serial.Serial(
     stopbits=serial.STOPBITS_ONE,
     bytesize=serial.EIGHTBITS
 )
-inverter_command = b'\x3F\x23\x7E\x34\x41\x7E\x32\x59\x31\x30\x30\x23\x3F'
 
+inverter_command = b'\x3F\x23\x7E\x34\x41\x7E\x32\x59\x31\x30\x30\x23\x3F'
+inverter_command_2 = b'\x3F\x23\x7E\x34\x42\x7E\x23\x3F'
 if ser.is_open:
     print(f"Serial port {PORT} opened successfully")
 
@@ -24,7 +25,7 @@ def send_command(command):
 
 def read_response():
     response = ser.read(100)
-    print(f"Received: {response}")
+    print(f"Received: {response}\n")
     return response
 
 
@@ -32,9 +33,12 @@ def main():
     print("listening for data")
     while True:
         read_response()
-        time.sleep(0.5)
+        #sleeping for 1.5 seconds sleeptime based on the value filled in by inverter command.
+        time.sleep(1.5) 
     
 if __name__ == "__main__":
     send_command(inverter_command)
-    send_command()
+    time.sleep(1.5)
+    read_response()
+    send_command(inverter_command_2)
     main()
