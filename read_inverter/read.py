@@ -40,5 +40,7 @@ if __name__ == "__main__":
     send_command(inverter_command)
     time.sleep(1.5)
     read_response()
+    time.sleep(0.5)
     send_command(inverter_command_2)
+    time.sleep(1.5)
     main()
