@@ -9,6 +9,42 @@
 #define BUFFER_SIZE 1024
 #define NUM_VALUES (DATA_SIZE / 2)
 
+int write_header = 0;
+int Incomplete_data(const char *filename)
+{
+    FILE *file = fopen(filename, "w");
+    if (file == NULL)
+    {
+        perror("Error opening file for writing");
+        return -1;
+    }
+    else {
+        write_header = 1;
+    }
+
+    if (write_header) {
+        fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
+    }
+
+    // SIMULATING DATA FOR WRITING PURPOSES
+    // DATA IS STORED IN SAME FOLDER AS C FILE FOR TESTING.
+    freopen("bad_input.txt", "r", stdin);
+    unsigned short raw_data[NUM_VALUES];
+    for (int i = 0; i < NUM_VALUES; i++)
+    {
+        unsigned short high_byte, low_byte;
+        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
+        {
+            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+
+        raw_data[i] = (high_byte << 8) | low_byte;
+        printf("raw_data[%d] = %04x\n", i, raw_data[i]);
+    }
+
+}
+
 // Function to write to csv file
 int write_csv(const char *filename)
 {
@@ -18,6 +54,14 @@ int write_csv(const char *filename)
         perror("Error opening file for writing");
         return -1;
     }
+    else {
+        write_header = 1;
+    }
+
+    if (write_header) {
+        fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
+    }
+
     // SIMULATING DATA FOR WRITING PURPOSES
     // DATA IS STORED IN SAME FOLDER AS C FILE FOR TESTING.
     freopen("input.txt", "r", stdin);
@@ -47,8 +91,7 @@ int write_csv(const char *filename)
     double total_time = (raw_data[13] + raw_data[14]);                    // D27D28D29D30
 
     // Write results to the CSV file
-    fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
-    fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f,%d", pv1_voltage, pv2_voltage, grid_voltage, grid_frequency, output_power, temperature, energy_today, energy_total, total_time);
+    fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f,%d\n", pv1_voltage, pv2_voltage, grid_voltage, grid_frequency, output_power, temperature, energy_today, energy_total, total_time);
     fclose(file);
     return 0;
 }
@@ -116,9 +159,12 @@ void test_csv()
     {
         printf("This will never print because the code will fail inside the function read_csv\n");
     }
-
-    // todo test bad input.
+    // Test trying to read incomplete data.
+    if (Incomplete_data(valid_filename) == 0){
+        printf("Error occurs inside of the Incomplete_data function, this should never print.\n");
+    }
 }
+
 int main()
 {
     // Run test
