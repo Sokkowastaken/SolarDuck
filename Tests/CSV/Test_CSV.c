@@ -4,98 +4,111 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define DATA_SIZE 30
 #define BUFFER_SIZE 1024
-#define NUM_VALUES (DATA_SIZE / 2)
 
 int write_header = 0;
-int Incomplete_data(const char *filename)
+
+unsigned short combine_bytes(unsigned char high_byte, unsigned char low_byte)
 {
-    FILE *file = fopen(filename, "w");
+    return (high_byte << 8) | low_byte;
+}
+
+bool file_has_header(const char *filename)
+{
+    FILE *file = fopen(filename, "r");
     if (file == NULL)
     {
-        perror("Error opening file for writing");
-        return -1;
-    }
-    else {
-        write_header = 1;
+        return false;
     }
 
-    if (write_header) {
-        fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
-    }
-
-    // SIMULATING DATA FOR WRITING PURPOSES
-    // DATA IS STORED IN SAME FOLDER AS C FILE FOR TESTING.
-    freopen("bad_input.txt", "r", stdin);
-    unsigned short raw_data[NUM_VALUES];
-    for (int i = 0; i < NUM_VALUES; i++)
+    char buffer[BUFFER_SIZE];
+    if (fgets(buffer, sizeof(buffer), file) != NULL)
     {
-        unsigned short high_byte, low_byte;
-        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
+        if (strstr(buffer, "PV1 Voltage (V)") != NULL)
         {
-            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
-            exit(EXIT_FAILURE);
+            fclose(file);
+            return true;
         }
-
-        raw_data[i] = (high_byte << 8) | low_byte;
-        printf("raw_data[%d] = %04x\n", i, raw_data[i]);
     }
 
+    fclose(file);
+    return false;
 }
 
 // Function to write to csv file
-int write_csv(const char *filename)
+int write_csv(const char *filename, const char *inputfile)
 {
-    FILE *file = fopen(filename, "w");
+    write_header = !file_has_header(filename);
+
+    FILE *file = fopen(filename, "a");
     if (file == NULL)
     {
         perror("Error opening file for writing");
         return -1;
     }
-    else {
-        write_header = 1;
-    }
 
-    if (write_header) {
-        fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);Energy Today (kWh);Energy Total (kWh);total time (s)\n");
-    }
-
-    // SIMULATING DATA FOR WRITING PURPOSES
-    // DATA IS STORED IN SAME FOLDER AS C FILE FOR TESTING.
-    freopen("input.txt", "r", stdin);
-    unsigned short raw_data[NUM_VALUES];
-    for (int i = 0; i < NUM_VALUES; i++)
+    if (write_header)
     {
-        unsigned short high_byte, low_byte;
-        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
+        fprintf(file, "PV1 Voltage (V);PV2 Voltage (V);Grid Voltage (V);Grid Frequency (Hz);Output Power (W);Temperature (C);inverter_status;inverter_fault_code;Energy Today (kWh);Energy Total (kWh);total time (s)\n");
+        write_header = 0;
+    }
+
+    FILE *input_file = fopen(inputfile, "r");
+    if (input_file == NULL)
+    {
+        perror("Error opening input file for reading inverter input");
+        return -1;
+    }
+
+    unsigned char data[DATA_SIZE];
+    size_t bytes_read;
+
+    // Read until the end of the file
+    while (1)
+    {
+        // Use a loop to read 30 hexadecimal values
+        for (int i = 0; i < DATA_SIZE; i++)
         {
-            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
-            exit(EXIT_FAILURE);
+            if (fscanf(input_file, "%x", &data[i]) != 1)
+            {
+                if (i == 0)
+                {
+                    // check for end of line/ breaking out of loop
+                    return 0;
+                }
+
+                fprintf(stderr, "Error: Data is not complete\n");
+                fclose(input_file);
+                fclose(file);
+                break;
+            }
         }
 
-        raw_data[i] = (high_byte << 8) | low_byte;
-        printf("raw_data[%d] = %04x\n", i, raw_data[i]);
+        // Combine data into 16-bit values
+        double pv1_voltage = combine_bytes(data[0], data[1]) / 10.0;                                                  // D1D2
+        double pv2_voltage = combine_bytes(data[4], data[5]) / 10.0;                                                  // D5D6
+        double grid_voltage = combine_bytes(data[6], data[7]) / 10.0;                                                 // D7D8
+        double grid_frequency = combine_bytes(data[8], data[9]) / 100.0;                                              // D9D10
+        double output_power = combine_bytes(data[10], data[11]) / 10.0;                                               // D11D12
+        double temperature = combine_bytes(data[12], data[13]) / 10.0;                                                // D13D14
+        unsigned char inverter_status = data[14];                                                                     // D15
+        unsigned short fault_code = data[15];                                                                         // D16D17
+        double energy_today = combine_bytes(data[20], data[21]) / 10.0;                                               // D21D22
+        double energy_total = (combine_bytes(data[22], data[23]) * 65536 + combine_bytes(data[24], data[25])) / 10.0; // D23D24D25D26
+        unsigned int total_time = combine_bytes(data[26], data[27]) + combine_bytes(data[28], data[29]);              // D27D28D29D30
+
+        // Append results to the CSV file
+        fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%d;%d;%.1f;%.1f;%d;\n",
+                pv1_voltage, pv2_voltage, grid_voltage, grid_frequency,
+                output_power, temperature, inverter_status, fault_code, energy_today, energy_total, total_time);
     }
-
-    // Calculate values based on given formula.
-    double pv1_voltage = (raw_data[0]) / 10.0;                            // D1D2
-    double pv2_voltage = (raw_data[2]) / 10.0;                            // D5D6
-    double grid_voltage = (raw_data[4]) / 10.0;                           // D7D8
-    double grid_frequency = (raw_data[5]) / 100.0;                        // D9D10
-    double output_power = (raw_data[6]) / 10.0;                           // D11D12
-    double temperature = (raw_data[7]) / 10.0;                            // D13D14 
-    double energy_today = (raw_data[10]) / 10.0;                          // D21D22
-    double energy_total = ((raw_data[11] * 65536) + raw_data[12]) / 10.0; // D23D24D25D26
-    double total_time = (raw_data[13] + raw_data[14]);                    // D27D28D29D30
-
-    // Write results to the CSV file
-    fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%.1f,%d\n", pv1_voltage, pv2_voltage, grid_voltage, grid_frequency, output_power, temperature, energy_today, energy_total, total_time);
+    fclose(input_file);
     fclose(file);
     return 0;
 }
-
 // Function to read data from csv file
 int read_csv(const char *filename)
 {
@@ -129,12 +142,14 @@ int read_csv(const char *filename)
 void test_csv()
 {
     // Test function for read and write actions.
+    const char *input = "input.txt";
+    const char *bad_input = "bad_input.txt";
     const char *valid_filename = "test.csv";
     const char *bad_input_filename = "bad_data.csv";
     const char *invalid_filename = "/fake_path/test.csv";
 
     printf("\n=== Testing Success Scenario ===\n");
-    if (write_csv(valid_filename) == 0)
+    if (write_csv(valid_filename, input) == 0)
     {
         printf("Writing succeeded. Verifying contents:\n");
         if (read_csv(valid_filename) != 0)
@@ -150,7 +165,7 @@ void test_csv()
     printf("\n=== Testing Failure Scenarios ===\n");
 
     // Test writing to an invalid location
-    if (write_csv(invalid_filename) == 0)
+    if (write_csv(invalid_filename, input) == 0)
     {
         printf("This will never print because the code will fail inside the function write_csv\n");
     }
@@ -161,9 +176,11 @@ void test_csv()
         printf("This will never print because the code will fail inside the function read_csv\n");
     }
     // Test trying to read incomplete data.
-    if (Incomplete_data(bad_input_filename) == 0){
-        printf("Error occurs inside of the Incomplete_data function, this should never print.\n");
+    if (write_csv(bad_input_filename, bad_input) == 0)
+    {
+        printf("Failed to write data to the bad_csv, file empty\n");
     }
+    printf("Test completed");
 }
 
 int main()

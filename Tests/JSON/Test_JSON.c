@@ -8,88 +8,88 @@
 #define DATA_SIZE 30
 #define NUM_VALUES (DATA_SIZE / 2)
 
-int Incomplete_data(const char *filename)
+unsigned short combine_bytes(unsigned char high_byte, unsigned char low_byte)
 {
-    FILE *file = fopen(filename, "w");
-    if (file == NULL)
-    {
-        perror("Error opening file for writing");
-        return -1;
-    }
-
-    // Simulating data reading from a source
-    freopen("bad_input.txt", "r", stdin);
-    unsigned short raw_data[NUM_VALUES];
-    for (int i = 0; i < NUM_VALUES; i++)
-    {
-        unsigned short high_byte, low_byte;
-        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
-        {
-            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
-            fclose(file);
-            return -1;
-        }
-        raw_data[i] = (high_byte << 8) | low_byte;
-    }
+    return (high_byte << 8) | low_byte;
 }
 
-int write_json(const char *filename)
+// Function to write to csv file
+int write_json(const char *filename, const char *inputfile)
 {
-    FILE *file = fopen(filename, "w");
+
+    FILE *file = fopen(filename, "a");
     if (file == NULL)
     {
         perror("Error opening file for writing");
         return -1;
     }
 
-    // Simulating data reading from a source
-    freopen("input.txt", "r", stdin);
-    unsigned short raw_data[NUM_VALUES];
-    for (int i = 0; i < NUM_VALUES; i++)
+    FILE *input_file = fopen(inputfile, "r");
+    if (input_file == NULL)
     {
-        unsigned short high_byte, low_byte;
-        if (scanf("%hx %hx", &high_byte, &low_byte) != 2)
-        {
-            fprintf(stderr, "Error: Invalid input format at position %d\n", i);
-            fclose(file);
-            return -1;
-        }
-        raw_data[i] = (high_byte << 8) | low_byte;
+        perror("Error opening input file for reading inverter input");
+        return -1;
     }
 
-    // Calculate values based on given formula
-    double pv1_voltage = raw_data[0] / 10.0;                             // D1D2
-    double pv2_voltage = raw_data[2] / 10.0;                             // D5D6
-    double grid_voltage = raw_data[4] / 10.0;                            // D7D8
-    double grid_frequency = raw_data[5] / 100.0;                         // D9D10
-    double output_power = raw_data[6] / 10.0;                            // D11D12
-    double temperature = raw_data[7] / 10.0;                             // D13D14
-    double error = raw_data[9];                                          // D16
-    double energy_today = raw_data[10] / 10.0;                           // D21D22
-    double energy_total = ((raw_data[11] * 65536) + raw_data[12]) / 10.0; // D23D24D25D26
-    double total_time = raw_data[13] + raw_data[14];                     // D27D28D29D30
+    unsigned char data[DATA_SIZE];
+    size_t bytes_read;
 
-    // Create a structured JSON-like string
-    fprintf(file, "{\n");
-    fprintf(file, "  \"PV1 voltage\": \"%.1fV\",\n", pv1_voltage);
-    fprintf(file, "  \"Grid\": {\n");
-    fprintf(file, "    \"voltage\": \"%.1fV\",\n", grid_voltage);
-    fprintf(file, "    \"frequency\": \"%.1fHz\"\n", grid_frequency);
-    fprintf(file, "  },\n");
-    fprintf(file, "  \"Output power\": \"%.1fKw\",\n", output_power);
-    fprintf(file, "  \"Inverter\": {\n");
-    fprintf(file, "    \"temprature\": \"%.1f\",\n", temperature);
-    fprintf(file, "    \"status\": \"Normal\",\n");
-    fprintf(file, "    \"fault\": \"Error : %d\"\n",error);
-    fprintf(file, "  },\n");
-    fprintf(file, "  \"Produced\": {\n");
-    fprintf(file, "    \"today\": \"%.1fW\",\n", energy_today);
-    fprintf(file, "    \"lifetime\": \"%.1fKw\"\n", energy_total);
-    fprintf(file, "  }\n");
-    fprintf(file, "}\n");
+    // Read until the end of the file
+    while (1)
+    {
+        // Use a loop to read 30 hexadecimal values
+        for (int i = 0; i < DATA_SIZE; i++)
+        {
+            if (fscanf(input_file, "%x", &data[i]) != 1)
+            {
+                if (i == 0)
+                {
+                    // check for end of line/ breaking out of loop
+                    return 0;
+                }
 
-    fclose(file);
-    return 0;
+                fprintf(stderr, "Error: Data is not complete\n");
+                fclose(input_file);
+                fclose(file);
+                break;
+            }
+        }
+
+        // Combine data into 16-bit values
+        double pv1_voltage = combine_bytes(data[0], data[1]) / 10.0;                                                  // D1D2
+        double pv2_voltage = combine_bytes(data[4], data[5]) / 10.0;                                                  // D5D6
+        double grid_voltage = combine_bytes(data[6], data[7]) / 10.0;                                                 // D7D8
+        double grid_frequency = combine_bytes(data[8], data[9]) / 100.0;                                              // D9D10
+        double output_power = combine_bytes(data[10], data[11]) / 10.0;                                               // D11D12
+        double temperature = combine_bytes(data[12], data[13]) / 10.0;                                                // D13D14
+        unsigned char inverter_status = data[14];                                                                     // D15
+        unsigned short fault_code = data[15];                                                                         // D16D17
+        double energy_today = combine_bytes(data[20], data[21]) / 10.0;                                               // D21D22
+        double energy_total = (combine_bytes(data[22], data[23]) * 65536 + combine_bytes(data[24], data[25])) / 10.0; // D23D24D25D26
+        unsigned int total_time = combine_bytes(data[26], data[27]) + combine_bytes(data[28], data[29]);              // D27D28D29D30
+
+        // Create a structured JSON-like string
+        fprintf(file, "{\n");
+        fprintf(file, "  \"PV1 voltage\": \"%.1fV\",\n", pv1_voltage);
+        fprintf(file, "  \"Grid\": {\n");
+        fprintf(file, "    \"voltage\": \"%.1fV\",\n", grid_voltage);
+        fprintf(file, "    \"frequency\": \"%.1fHz\"\n", grid_frequency);
+        fprintf(file, "  },\n");
+        fprintf(file, "  \"Output power\": \"%.1fKw\",\n", output_power);
+        fprintf(file, "  \"Inverter\": {\n");
+        fprintf(file, "    \"temprature\": \"%.1f\",\n", temperature);
+        fprintf(file, "    \"status\": \"status: %d\",\n", inverter_status);
+        fprintf(file, "    \"fault\": \"Error : %d\"\n", fault_code);
+        fprintf(file, "  },\n");
+        fprintf(file, "  \"Produced\": {\n");
+        fprintf(file, "    \"today\": \"%.1fW\",\n", energy_today);
+        fprintf(file, "    \"lifetime\": \"%.1fKw\"\n", energy_total);
+        fprintf(file, "  }\n");
+        fprintf(file, "}\n");
+
+        fclose(file);
+        return 0;
+    }
 }
 
 int read_json(const char *filename)
@@ -121,23 +121,24 @@ int read_json(const char *filename)
     return 0;
 }
 
-
 void test_json()
 {
     // Test function for read and write actions.
+    const char *input = "input.txt";
+    const char *bad_input = "bad_input.txt";
     const char *valid_filename = "test.json";
     const char *bad_input_filename = "bad_data.json";
     const char *invalid_filename = "/fake_path/test.json";
 
     printf("\n=== Testing Success Scenario ===\n");
-    if (write_json(valid_filename) == 0)
+    if (write_json(valid_filename, input) == 0)
     {
         printf("Writing succeeded. Verifying contents:\n");
         if (read_json(valid_filename) != 0)
         {
             printf("Failed to read valid JSON file.\n");
         }
-        printf("Reading data was succesful")
+        printf("Reading data was succesful");
     }
     else
     {
@@ -147,7 +148,7 @@ void test_json()
     printf("\n=== Testing Failure Scenarios ===\n");
 
     // Test writing to an invalid location
-    if (write_json(invalid_filename) == 0)
+    if (write_json(invalid_filename, input) == 0)
     {
         printf("This will never print because the code will fail inside the function write_json\n");
     }
@@ -158,9 +159,11 @@ void test_json()
         printf("This will never print because the code will fail inside the function read_json\n");
     }
     // Test trying to read incomplete data.
-    if (Incomplete_data(bad_input_filename) == 0){
-        printf("Error occurs inside of the Incomplete_data function, this should never print.\n");
+    if (write_json(bad_input_filename, bad_input) == 0)
+    {
+        printf("Failed to write data to the bad_data.json, file empty\n");
     }
+    printf("Test completed");
 }
 
 int main()
