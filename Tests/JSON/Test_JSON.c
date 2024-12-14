@@ -85,7 +85,7 @@ int write_json(const char *filename)
     fprintf(file, "  \"Produced\": {\n");
     fprintf(file, "    \"today\": \"%.1fW\",\n", energy_today);
     fprintf(file, "    \"lifetime\": \"%.1fKw\"\n", energy_total);
-    fprintf(file, "  },\n");
+    fprintf(file, "  }\n");
     fprintf(file, "}\n");
 
     fclose(file);
