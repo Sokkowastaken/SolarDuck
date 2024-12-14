@@ -85,7 +85,7 @@ int write_csv(const char *filename)
     double grid_voltage = (raw_data[4]) / 10.0;                           // D7D8
     double grid_frequency = (raw_data[5]) / 100.0;                        // D9D10
     double output_power = (raw_data[6]) / 10.0;                           // D11D12
-    double temperature = (raw_data[7]) / 10.0;                            // D13D14
+    double temperature = (raw_data[7]) / 10.0;                            // D13D14 
     double energy_today = (raw_data[10]) / 10.0;                          // D21D22
     double energy_total = ((raw_data[11] * 65536) + raw_data[12]) / 10.0; // D23D24D25D26
     double total_time = (raw_data[13] + raw_data[14]);                    // D27D28D29D30
@@ -130,6 +130,7 @@ void test_csv()
 {
     // Test function for read and write actions.
     const char *valid_filename = "test.csv";
+    const char *bad_input_filename = "bad_data.csv";
     const char *invalid_filename = "/fake_path/test.csv";
 
     printf("\n=== Testing Success Scenario ===\n");
@@ -160,7 +161,7 @@ void test_csv()
         printf("This will never print because the code will fail inside the function read_csv\n");
     }
     // Test trying to read incomplete data.
-    if (Incomplete_data(valid_filename) == 0){
+    if (Incomplete_data(bad_input_filename) == 0){
         printf("Error occurs inside of the Incomplete_data function, this should never print.\n");
     }
 }
