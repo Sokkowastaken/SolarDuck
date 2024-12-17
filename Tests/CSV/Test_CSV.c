@@ -10,6 +10,73 @@
 #define BUFFER_SIZE 1024
 
 int write_header = 0;
+const char *get_fault(unsigned char fault_code);
+const char *get_inverter_status(unsigned char inverter_status);
+void print_inverter_error(unsigned char inverter_status, unsigned short fault_code)
+{
+    const char *status_message = get_inverter_status(inverter_status);
+    if (inverter_status == 3) // 3: Fault
+    {
+        const char *fault_message = get_fault(fault_code);
+        printf("ERROR: Inverter Status: Fault | Fault Code: %d | Message: %s\n", fault_code, fault_message);
+    }
+    else if (inverter_status == 1)
+    {
+        printf("Inverter Status: Normal\n");
+    }
+    else if (inverter_status == 0)
+    {
+        printf("Inverter Status: Waiting\n");
+    }
+}
+
+const char *get_fault(unsigned char fault_code)
+{
+    switch (fault_code)
+    {
+    case 24:
+        return "Auto Test Failed";
+    case 25:
+        return "No AC Connection";
+    case 26:
+        return "PV Isolation Low";
+    case 27:
+        return "Residual I High";
+    case 28:
+        return "Output High DCI";
+    case 29:
+        return "PV Voltage High";
+    case 30:
+        return "AC V Outrange";
+    case 31:
+        return "AC F Outrange";
+    case 32:
+        return "Module Hot";
+    default:
+        if (fault_code >= 1 && fault_code <= 23)
+        {
+            static char error_message[20];
+            sprintf(error_message, "Error: %d", 99 + fault_code);
+            return error_message;
+        }
+        return "Unknown Fault";
+    }
+}
+
+const char *get_inverter_status(unsigned char status)
+{
+    switch (status)
+    {
+    case 0:
+        return "Waiting";
+    case 1:
+        return "Normal";
+    case 3:
+        return "Fault";
+    default:
+        return "Unknown Status";
+    }
+}
 
 unsigned short combine_bytes(unsigned char high_byte, unsigned char low_byte)
 {
@@ -66,17 +133,16 @@ int write_csv(const char *filename, const char *inputfile)
     unsigned char data[DATA_SIZE];
     size_t bytes_read;
 
-    // Read until the end of the file
     while (1)
     {
-        // Use a loop to read 30 hexadecimal values
         for (int i = 0; i < DATA_SIZE; i++)
         {
             if (fscanf(input_file, "%x", &data[i]) != 1)
             {
                 if (i == 0)
                 {
-                    // check for end of line/ breaking out of loop
+                    fclose(input_file);
+                    fclose(file);
                     return 0;
                 }
 
@@ -95,12 +161,11 @@ int write_csv(const char *filename, const char *inputfile)
         double output_power = combine_bytes(data[10], data[11]) / 10.0;                                               // D11D12
         double temperature = combine_bytes(data[12], data[13]) / 10.0;                                                // D13D14
         unsigned char inverter_status = data[14];                                                                     // D15
-        unsigned short fault_code = data[15];                                                                         // D16D17
+        unsigned char fault_code = data[15];                                                                          // D16D17
         double energy_today = combine_bytes(data[20], data[21]) / 10.0;                                               // D21D22
         double energy_total = (combine_bytes(data[22], data[23]) * 65536 + combine_bytes(data[24], data[25])) / 10.0; // D23D24D25D26
         unsigned int total_time = combine_bytes(data[26], data[27]) + combine_bytes(data[28], data[29]);              // D27D28D29D30
 
-        // Append results to the CSV file
         fprintf(file, "%.1f;%.1f;%.1f;%.1f;%.1f;%.1f;%d;%d;%.1f;%.1f;%d;\n",
                 pv1_voltage, pv2_voltage, grid_voltage, grid_frequency,
                 output_power, temperature, inverter_status, fault_code, energy_today, energy_total, total_time);
@@ -121,10 +186,10 @@ int read_csv(const char *filename)
 
     char buffer[BUFFER_SIZE];
 
-    // Read line-by-line from the CSV file using fgets
+    // Read line-by-line from the CSV file
     while (fgets(buffer, sizeof(buffer), file) != NULL)
     {
-        // Output the line from CSV
+
         printf("%s", buffer);
     }
 
@@ -161,6 +226,13 @@ void test_csv()
     {
         printf("Failed to write valid CSV file.\n");
     }
+
+    printf("=== Testing Foutmelding/storing Scenario ===\n");
+    // triggering all different errors.
+    print_inverter_error(0, 0);
+    print_inverter_error(1, 0);
+    print_inverter_error(3, 22);
+    print_inverter_error(3, 34);
 
     printf("\n=== Testing Failure Scenarios ===\n");
 
