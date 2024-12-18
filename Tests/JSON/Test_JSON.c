@@ -8,6 +8,74 @@
 #define DATA_SIZE 30
 #define NUM_VALUES (DATA_SIZE / 2)
 
+const char *get_fault(unsigned char fault_code);
+const char *get_inverter_status(unsigned char inverter_status);
+void print_inverter_error(unsigned char inverter_status, unsigned short fault_code)
+{
+    const char *status_message = get_inverter_status(inverter_status);
+    if (inverter_status == 3) // 3: Fault
+    {
+        const char *fault_message = get_fault(fault_code);
+        printf("ERROR: Inverter Status: Fault | Fault Code: %d | Message: %s\n", fault_code, fault_message);
+    }
+    else if (inverter_status == 1)
+    {
+        printf("Inverter Status: Normal\n");
+    }
+    else if (inverter_status == 0)
+    {
+        printf("Inverter Status: Waiting\n");
+    }
+}
+
+const char *get_fault(unsigned char fault_code)
+{
+    switch (fault_code)
+    {
+    case 24:
+        return "Auto Test Failed";
+    case 25:
+        return "No AC Connection";
+    case 26:
+        return "PV Isolation Low";
+    case 27:
+        return "Residual I High";
+    case 28:
+        return "Output High DCI";
+    case 29:
+        return "PV Voltage High";
+    case 30:
+        return "AC V Outrange";
+    case 31:
+        return "AC F Outrange";
+    case 32:
+        return "Module Hot";
+    default:
+        if (fault_code >= 1 && fault_code <= 23)
+        {
+            static char error_message[20];
+            sprintf(error_message, "Error: %d", 99 + fault_code);
+            return error_message;
+        }
+        return "Unknown Fault";
+    }
+}
+
+const char *get_inverter_status(unsigned char status)
+{
+    switch (status)
+    {
+    case 0:
+        return "Waiting";
+    case 1:
+        return "Normal";
+    case 3:
+        return "Fault";
+    default:
+        return "Unknown Status";
+    }
+}
+
 unsigned short combine_bytes(unsigned char high_byte, unsigned char low_byte)
 {
     return (high_byte << 8) | low_byte;
@@ -17,7 +85,7 @@ unsigned short combine_bytes(unsigned char high_byte, unsigned char low_byte)
 int write_json(const char *filename, const char *inputfile)
 {
 
-    FILE *file = fopen(filename, "a");
+    FILE *file = fopen(filename, "w");
     if (file == NULL)
     {
         perror("Error opening file for writing");
@@ -138,12 +206,18 @@ void test_json()
         {
             printf("Failed to read valid JSON file.\n");
         }
-        printf("Reading data was succesful");
+        printf("Reading data was succesful\n");
     }
     else
     {
         printf("Failed to write valid JSON file.\n");
     }
+    printf("=== Testing Foutmelding/storing Scenario ===\n");
+    // triggering all different errors.
+    print_inverter_error(0, 0);
+    print_inverter_error(1, 0);
+    print_inverter_error(3, 22);
+    print_inverter_error(3, 32);
 
     printf("\n=== Testing Failure Scenarios ===\n");
 

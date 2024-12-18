@@ -221,6 +221,7 @@ void test_csv()
         {
             printf("Failed to read valid CSV file.\n");
         }
+        printf("Reading data was succesful\n");
     }
     else
     {
