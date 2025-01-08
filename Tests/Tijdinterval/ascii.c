@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 int main(){
-char number = '0';
+char number = '9';
 char number2 = '1';
 
 printf("ascii value of %c in hex %x\n",number,number);
